@@ -15,6 +15,9 @@ intervals for success and quality for randomized algorithms.
 
 ## Strategies
 
+This repository is a playground for implementing new solve strategies. Feel
+free to send a PR with your own (just subclass the `Player` class)!
+
 Terminology:
 
 1. **Perfect guess**: a guess that uses all previous information available,
