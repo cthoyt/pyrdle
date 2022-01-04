@@ -58,6 +58,12 @@ class Configuration:
         total = sum(counter.values())
         return successes / total
 
+    def speed(self, counter) -> float:
+        """Calculate the average solve speed."""
+        return sum(key * value for key, value in counter.items() if isinstance(key, int)) / len(
+            self.allowed
+        )
+
     def quality(self, counter) -> float:
         """Calculate a quality score for successes."""
         # worst case is it takes self.length for each, so len(self.allowed) * len(self.height)
@@ -282,10 +288,13 @@ def main(length: int = 5, height: int = 6):
                 player_cls,
                 player_kwargs,
                 configuration.success(counter),
+                configuration.speed(counter),
                 configuration.quality(counter),
             )
         )
-    print(tabulate(rows, headers=["cls", "kwargs", "success", "quality"], tablefmt="github"))
+    print(
+        tabulate(rows, headers=["cls", "kwargs", "success", "speed", "quality"], tablefmt="github")
+    )
 
 
 if __name__ == "__main__":
