@@ -34,3 +34,12 @@ deterministically solve for the word after one more perfect guess. It turns out
 that with this example, you can solve 96.9% of the time with an average of 4.27
 guesses. That's pretty surprising, but also assumes you have computer-like
 recall of words.
+
+
+## Warnings
+
+- This code uses https://pypi.org/project/english-words/. This has some weird stuff missing from it.
+
+## See also
+
+- https://github.com/coolbutuseless/wordle
