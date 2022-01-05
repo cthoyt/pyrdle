@@ -66,12 +66,9 @@ class Configuration:
 
     def quality(self, counter) -> float:
         """Calculate a quality score for successes."""
-        # worst case is it takes self.length for each, so len(self.allowed) * len(self.height)
-        numerator = sum(key * value for key, value in counter.items() if isinstance(key, int))
-        denominator = sum(
-            self.height * value for key, value in counter.items() if isinstance(key, int)
-        )
-        return numerator / denominator
+        # experimental - needs to combine both the success rate and average speed
+        s = self.speed(counter)
+        return (1 - self.success(counter)) * (self.height - s) / self.height
 
 
 class Game:
@@ -191,28 +188,45 @@ class InitialGuesser(Player):
         raise NotImplementedError
 
 
+def get_constraints(
+    guesses: list[str], calls: list[Sequence[Call]]
+) -> tuple[dict[int, str], set[str], set[str]]:
+    """Get constraints."""
+    positions = {}
+    appears = set()
+    no_appears = set()
+    for call, guess in zip(calls, guesses):
+        for i, c, x in zip(itt.count(), call, guess):
+            if c == "correct":
+                positions[i] = x
+                appears.add(x)
+            elif c == "somewhere":
+                appears.add(x)
+            elif c == "incorrect":
+                no_appears.add(x)
+    return positions, appears, no_appears
+
+
+def valid_under_constraints(
+    word: str, positions: dict[int, str], appears: set[str], no_appears: set[str]
+) -> bool:
+    """Check if the word is valid under the constraints."""
+    return (
+        all(word[i] == x for i, x in positions.items())
+        and all(char in word for char in appears)
+        and all(char not in word for char in no_appears)
+    )
+
+
 class GreedyInitialGuesser(InitialGuesser):
-    """Guess the initial guesses then use process of elimitation to make new guesses."""
+    """Guess the initial guesses then use process of elimination to make new guesses."""
 
     def guess_late_game(self, guesses: list[str], calls: list[Sequence[Call]]) -> str:
         """Guess the first word that matches the constraints given by all past guesses."""
-        constraints = {}
-        appears = set()
-        no_appears = set()
-        for call, guess in zip(calls, guesses):
-            for i, c, x in zip(itt.count(), call, guess):
-                if c == "correct":
-                    constraints[i] = x
-                elif c == "somewhere":
-                    appears.add(x)
-                elif c == "incorrect":
-                    no_appears.add(x)
+        positions, appears, no_appears = get_constraints(guesses, calls)
         for word in self.configuration.allowed:
-            if (
-                word not in guesses
-                and all(word[i] == x for i, x in constraints.items())
-                and all(char in word for char in appears)
-                and all(char not in word for char in no_appears)
+            if word not in guesses and valid_under_constraints(
+                word, positions, appears, no_appears
             ):
                 return word
         raise ValueError("could not make a guess")
@@ -271,6 +285,12 @@ class Controller:
 def main(length: int = 5, height: int = 6):
     """Run the controller."""
     configuration = Configuration(length=length, height=height)
+
+    # Demo of given word
+    game = Game(configuration=configuration, word="hatch")
+    player = GreedyInitialGuesser(configuration=configuration, initial=["handy", "crime", "lotus"])
+    game.play(player, verbose=True)
+
     players: list[tuple[str, dict[str, Any]]] = [
         ("Random", {}),
         ("GreedyInitialGuesser", {"initial": ["snake", "batch", "chart"]}),
@@ -289,12 +309,9 @@ def main(length: int = 5, height: int = 6):
                 player_kwargs,
                 configuration.success(counter),
                 configuration.speed(counter),
-                configuration.quality(counter),
             )
         )
-    print(
-        tabulate(rows, headers=["cls", "kwargs", "success", "speed", "quality"], tablefmt="github")
-    )
+    print(tabulate(rows, headers=["cls", "kwargs", "success", "speed"], tablefmt="github"))
 
 
 if __name__ == "__main__":
