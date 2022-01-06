@@ -3,16 +3,14 @@
 import itertools as itt
 import math
 import random
-import zipfile
 from collections import Counter
-from functools import lru_cache
 from typing import Any, Literal, Mapping, Optional, Sequence, Type
 
-import pystow
 from class_resolver import Hint, Resolver
-from english_words import english_words_alpha_set
 from tabulate import tabulate
 from tqdm import tqdm
+
+from lang import get_words
 
 Call = Literal["correct", "somewhere", "incorrect"]
 
@@ -21,28 +19,6 @@ CALLS: Mapping[Call, str] = {
     "somewhere": "🟨",
     "incorrect": "⬛",
 }
-
-URL = "http://www.ids-mannheim.de/fileadmin/kl/derewo/derewo-v-ww-bll-320000g-2012-12-31-1.0.zip"
-
-
-@lru_cache
-def _get_words(length: int, language: Optional[str] = None) -> set[str]:
-    if language is None or language == "en":
-        return {word.lower() for word in english_words_alpha_set if length == len(word)}
-    elif language == "de":
-        path = pystow.ensure("wordle", url=URL)
-        rv = set()
-        with zipfile.ZipFile(path) as zip_file:
-            with zip_file.open("derewo-v-ww-bll-320000g-2012-12-31-1.0.txt", mode="r") as file:
-                for line in file:
-                    line = line.strip().decode("iso-8859-1")
-                    if line.startswith("#") or "," in line:
-                        continue
-                    word, *_ = line.split()
-                    rv.add(word)
-        return {word.lower() for word in rv if length == len(word)}
-    else:
-        raise ValueError(f"Unhandled language: {language}")
 
 
 class Configuration:
@@ -57,7 +33,7 @@ class Configuration:
         """
         self.length = length
         self.height = height
-        self.allowed = _get_words(self.length, language=language)
+        self.allowed = get_words(self.length, language=language)
         self.allowed_tuple = tuple(self.allowed)
 
     def choice(self) -> str:
@@ -291,9 +267,7 @@ class Controller:
     def play_all(self):
         """Play a game on all words."""
         counter = Counter()
-        it = tqdm(sorted(self.configuration.allowed), leave=False)
-        for word in it:
-            it.set_postfix(word=word)
+        for word in tqdm(self.configuration.allowed, leave=False):
             game = self.play(word)
             if game.state():
                 counter[len(game.guesses)] += 1
@@ -308,15 +282,17 @@ def main(length: int = 5, height: int = 6):
 
     # German demo of given word
     game = Game(configuration=de_configuration)
-    spieler = RandomPlayer(configuration=de_configuration)
+    spieler = GreedyInitialGuesser(
+        configuration=de_configuration, initial=["rüböl", "welpe", "ampex"]
+    )
     game.play(spieler, verbose=True)
 
     configuration = Configuration(length=length, height=height)
 
     # Demo of given word
-    game = Game(configuration=configuration, word="hatch")
-    spieler = GreedyInitialGuesser(configuration=configuration, initial=["handy", "crime", "lotus"])
-    game.play(spieler, verbose=True)
+    game = Game(configuration=configuration)
+    player = GreedyInitialGuesser(configuration=configuration, initial=["handy", "crime", "lotus"])
+    game.play(player, verbose=True)
 
     players: list[tuple[str, dict[str, Any]]] = [
         ("Random", {}),
