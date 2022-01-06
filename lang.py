@@ -1,3 +1,5 @@
+"""Deeper support for alternate languages and subsets."""
+
 import itertools as itt
 import math
 import zipfile
@@ -7,7 +9,6 @@ from typing import Iterable, Optional
 
 import pystow
 from english_words import english_words_alpha_set
-from tabulate import tabulate
 from tqdm import tqdm
 
 __all__ = [
@@ -28,8 +29,8 @@ def get_words(length: int, language: Optional[str] = None) -> set[str]:
         rv = set()
         with zipfile.ZipFile(path) as zip_file:
             with zip_file.open("derewo-v-ww-bll-320000g-2012-12-31-1.0.txt", mode="r") as file:
-                for line in file:
-                    line = line.strip().decode("iso-8859-1")
+                for line_bytes in file:
+                    line = line_bytes.strip().decode("iso-8859-1")
                     if line.startswith("#") or "," in line:
                         continue
                     word, *_ = line.split()
@@ -54,7 +55,14 @@ def _exclusive(left: str, right: str) -> bool:
 
 
 class Language:
+    """Represents a language, and operations on indexing it."""
+
     def __init__(self, length: int, language: Optional[str] = None):
+        """Instantiate a language.
+
+        :param length: The length of the words. The canonical game uses 5.
+        :param language: The language you want to play in (either en or de for now)
+        """
         self.length = length
         self.language = language or "en"
         self.words = get_words(length=self.length, language=self.language)
@@ -66,9 +74,12 @@ class Language:
         )
 
     def score_words(self, *words: str) -> float:
-        return sum(self.frequency_norm[char] for word in words for char in word)
+        """Score a set of words based on their unique letters weighted by their frequency."""
+        chars = {char for word in words for char in word}
+        return sum(self.frequency_norm[char] for char in chars)
 
     def get_index(self) -> dict[tuple[str, ...], list[str]]:
+        """Create an index of words with no overlapping letters."""
         # The goal of the index is to make a list of acceptable choices
         index = defaultdict(list)
         for left, right in tqdm(
@@ -85,6 +96,7 @@ class Language:
     def deepen_index(
         self, index: dict[tuple[str, ...], list[str]]
     ) -> dict[tuple[str, ...], list[str]]:
+        """Deepen an index of words with no overlapping letters with one more word."""
         rv = defaultdict(list)
         for key, values in tqdm(index.items(), desc="Extending index"):
             for left, right in itt.combinations(values, 2):
@@ -93,6 +105,10 @@ class Language:
         return dict(rv)
 
     def iter_k_tuples(self, k: int) -> Iterable[tuple[str, ...]]:
+        """Unwrap an index and iterate over its word tuples.
+
+        :param k: Number of words in the sequence
+        """
         if k == 1:
             for word in self.words_list:
                 yield (word,)
@@ -111,15 +127,6 @@ class Language:
         k: int,
         n: Optional[int] = 30,
     ) -> list[tuple[tuple[str, ...], float]]:
+        """Get the top n word sequences of length k."""
         scores = Counter({words: self.score_words(*words) for words in self.iter_k_tuples(k)})
-        return scores.most_common(n)
-
-
-def main():
-    language = Language(length=5)
-    print(tabulate(language.get_top_words(k=2, n=30), headers=["Words", "Score"]))
-
-
-if __name__ == "__main__":
-    main()
-    # print(tabulate(get_top_words(k=3, length=5)))
+        return scores.most_common(n)  # type:ignore
