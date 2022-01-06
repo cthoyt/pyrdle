@@ -2,6 +2,11 @@
 
 Wordle is fun, so let's ruin it with computers.
 
+## How to Play
+
+Install the requirements then run `play.py`. Will add packaging soon with a
+vanity CLI.
+
 ## Metrics
 
 This repository assesses two metrics about each algorithm:

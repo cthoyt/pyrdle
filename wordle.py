@@ -1,5 +1,7 @@
 """Run Wordle."""
 
+from __future__ import annotations
+
 import itertools as itt
 import math
 import random
@@ -19,6 +21,11 @@ CALLS: Mapping[Call, str] = {
     "somewhere": "🟨",
     "incorrect": "⬛",
 }
+CALL_COLORS: Mapping[Call, str] = {
+    "correct": "green",
+    "somewhere": "yellow",
+    "incorrect": "white",
+}
 
 
 class Configuration:
@@ -31,6 +38,7 @@ class Configuration:
         :param height: The number of guesses. The canonical game uses 6.
         :param language: The language you want to play in (either en or de for now)
         """
+        self.language = language or "en"
         self.length = length
         self.height = height
         self.allowed = get_words(self.length, language=language)
@@ -88,7 +96,7 @@ class Game:
 
     def state(self) -> Optional[bool]:
         """Return the state of the game -> true=win, false=lose, None=still playing."""
-        if len(self.guesses) > self.configuration.height:
+        if len(self.guesses) >= self.configuration.height:
             return False
         elif 0 < len(self.guesses) and self.guesses[-1] == self.word:
             return True
