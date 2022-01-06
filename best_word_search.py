@@ -16,7 +16,7 @@ RESULTS = HERE.joinpath("results")
 
 
 def main(
-    k: int = 1,
+    k: int = 2,
     n: Optional[int] = None,
     length: int = 5,
     height: int = 6,
@@ -29,7 +29,22 @@ def main(
     rows = []
     columns = [f"word{i}" for i in range(k)]
     columns.extend(("score", "success", "speed"))
-    it = tqdm(lang.get_top_words(k=k, n=n), desc=f"{k=},{n=},{length=},{height=}")
+
+    if k == 1:
+        unit = "word"
+    elif k == 2:
+        unit = "pair"
+    elif k == 3:
+        unit = "triple"
+    else:
+        unit = f"{k}-tuple"
+
+    it = tqdm(
+        lang.get_top_words(k=k, n=n),
+        unit_scale=True,
+        unit=unit,
+        desc=f"{k=},{n=},{length=},{height=}",
+    )
     for words, score in it:
         it.set_postfix(tup=",".join(words))
         controller = Controller(
