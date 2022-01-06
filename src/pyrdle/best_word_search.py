@@ -8,11 +8,12 @@ import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
 
-from lang import Language
-from wordle import Configuration, Controller, GreedyInitialGuesser
+from .lang import Language
+from .wordle import Configuration, Controller, GreedyInitialGuesser
 
 HERE = Path(__file__).parent.resolve()
-RESULTS = HERE.joinpath("results")
+ROOT = HERE.parent.parent.resolve()
+RESULTS = ROOT.joinpath("results")
 
 
 def main(

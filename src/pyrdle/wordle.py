@@ -12,7 +12,7 @@ from class_resolver import Hint, Resolver
 from tabulate import tabulate
 from tqdm import tqdm
 
-from lang import get_words
+from .lang import get_words
 
 Call = Literal["correct", "somewhere", "incorrect"]
 

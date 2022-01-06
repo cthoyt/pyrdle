@@ -3,7 +3,7 @@
 import click
 from rich.console import Console
 
-from wordle import CALL_COLORS, Configuration, Game
+from .wordle import CALL_COLORS, Configuration, Game
 
 
 @click.command()

@@ -2,10 +2,19 @@
 
 Wordle is fun, so let's ruin it with computers.
 
+Install with `pip install pyrdle`
+or `pip install git+https://github.com/cthoyt/ruin-wordle.git` to get the latest
+version.
+
 ## How to Play
 
-Install the requirements then run `play.py`. Will add packaging soon with a
-vanity CLI.
+Run the `wordle` command in the shell. Use `--help` to see how to set the
+game to have a different number of letters, different number of guesss,
+or to use a different language.
+
+```shell
+$ wordle
+```
 
 ## Metrics
 
@@ -20,8 +29,8 @@ intervals for success and quality for randomized algorithms.
 
 ## Strategies
 
-This repository is a playground for implementing new solve strategies. Feel
-free to send a PR with your own (just subclass the `Player` class)!
+This repository is a playground for implementing new solve strategies. Feel free
+to send a PR with your own (just subclass the `Player` class)!
 
 Terminology:
 
@@ -40,10 +49,10 @@ that with this example, you can solve 96.9% of the time with an average of 4.27
 guesses. That's pretty surprising, but also assumes you have computer-like
 recall of words.
 
-
 ## Warnings
 
-- This code uses https://pypi.org/project/english-words/. This has some weird stuff missing from it.
+- This code uses https://pypi.org/project/english-words/. This has some weird
+  stuff missing from it.
 
 ## See also
 
