@@ -16,6 +16,8 @@ or to use a different language.
 $ wordle
 ```
 
+![CLI Demo](results/cli_demo.png)
+
 ## Metrics
 
 This repository assesses two metrics about each algorithm:
