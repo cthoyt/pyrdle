@@ -40,7 +40,15 @@ def get_words(length: int, language: Optional[str] = None) -> set[str]:
 
 
 def _exclusive(left: str, right: str) -> bool:
-    """Return if two strings don't share any characters or have duplicates."""
+    """Return if two strings don't share any characters or have duplicates.
+
+    >>> _exclusive("abc", "def")
+    True
+    >>> _exclusive("abcc", "def")
+    False
+    >>> _exclusive("abc", "cde")
+    False
+    """
     counter = Counter(left) + Counter(right)
     return 1 == counter.most_common(1)[0][1]
 

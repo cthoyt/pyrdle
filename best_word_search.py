@@ -17,7 +17,7 @@ RESULTS = HERE.joinpath("results")
 
 def main(
     k: int = 2,
-    n: Optional[int] = None,
+    n: Optional[int] = 3000,
     length: int = 5,
     height: int = 6,
     language: Optional[str] = None,
@@ -46,7 +46,7 @@ def main(
         desc=f"{k=},{n=},{length=},{height=}",
     )
     for words, score in it:
-        it.set_postfix(tup=",".join(words))
+        it.set_postfix(words=",".join(words), score=score)
         controller = Controller(
             player_cls=GreedyInitialGuesser,
             player_kwargs={"initial": words},
