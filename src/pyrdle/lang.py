@@ -2,13 +2,13 @@
 
 import itertools as itt
 import math
+import random
 import zipfile
 from collections import Counter, defaultdict
 from functools import lru_cache
 from typing import Iterable, Optional
 
 import pystow
-from english_words import english_words_alpha_set
 from tqdm import tqdm
 
 __all__ = [
@@ -23,7 +23,8 @@ URL = "http://www.ids-mannheim.de/fileadmin/kl/derewo/derewo-v-ww-bll-320000g-20
 def get_words(length: int, language: Optional[str] = None) -> set[str]:
     """Get words of a given length in a given language."""
     if language is None or language == "en":
-        return {word.lower() for word in english_words_alpha_set if length == len(word)}
+        with open("/usr/share/dict/words") as file:
+            return {word.strip().lower() for word in file if length == len(word.strip())}
     elif language == "de":
         path = pystow.ensure("wordle", url=URL)
         rv = set()
@@ -40,43 +41,41 @@ def get_words(length: int, language: Optional[str] = None) -> set[str]:
         raise ValueError(f"Unhandled language: {language}")
 
 
-def _exclusive(left: str, right: str) -> bool:
-    """Return if two strings don't share any characters or have duplicates.
-
-    >>> _exclusive("abc", "def")
-    True
-    >>> _exclusive("abcc", "def")
-    False
-    >>> _exclusive("abc", "cde")
-    False
-    """
-    counter = Counter(left) + Counter(right)
-    return 1 == counter.most_common(1)[0][1]
-
-
 class Language:
     """Represents a language, and operations on indexing it."""
 
-    def __init__(self, length: int, language: Optional[str] = None):
+    def __init__(self, length: Optional[int] = None, language: Optional[str] = None):
         """Instantiate a language.
 
         :param length: The length of the words. The canonical game uses 5.
         :param language: The language you want to play in (either en or de for now)
         """
-        self.length = length
+        self.length = length or 5
         self.language = language or "en"
         self.words = get_words(length=self.length, language=self.language)
-        self.words_list = sorted(self.words)
+        self.words_list = tuple(sorted(self.words))
         self.frequency = Counter(char for word in self.words for char in word)
         total = sum(self.frequency.values())
         self.frequency_norm = Counter(
             {char: count / total for char, count in self.frequency.items()}
         )
+        self.scores = {word: self.score_words(word) for word in self.words}
+
+    def choice(self) -> str:
+        """Randomly choose a word."""
+        return random.choice(self.words_list)  # noqa:S311
 
     def score_words(self, *words: str) -> float:
         """Score a set of words based on their unique letters weighted by their frequency."""
         chars = {char for word in words for char in word}
         return sum(self.frequency_norm[char] for char in chars)
+
+    def combinations(self, n: int, use_tqdm: bool = False):
+        """Iterate over combinations of allowed words."""
+        it = itt.combinations(self.words, n)
+        if use_tqdm:
+            it = tqdm(it, total=math.comb(len(self.words), n), unit="comb", unit_scale=True)
+        yield from it
 
     def get_index(self) -> dict[tuple[str, ...], list[str]]:
         """Create an index of words with no overlapping letters."""
@@ -130,3 +129,17 @@ class Language:
         """Get the top n word sequences of length k."""
         scores = Counter({words: self.score_words(*words) for words in self.iter_k_tuples(k)})
         return scores.most_common(n)  # type:ignore
+
+
+def _exclusive(left: str, right: str) -> bool:
+    """Return if two strings don't share any characters or have duplicates.
+
+    >>> _exclusive("abc", "def")
+    True
+    >>> _exclusive("abcc", "def")
+    False
+    >>> _exclusive("abc", "cde")
+    False
+    """
+    counter = Counter(left) + Counter(right)
+    return 1 == counter.most_common(1)[0][1]

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import itertools as itt
-import math
-import random
 from collections import Counter
 from typing import Any, Literal, Mapping, Optional, Sequence, Type
 
@@ -12,7 +10,7 @@ from class_resolver import Hint, Resolver
 from tabulate import tabulate
 from tqdm import tqdm
 
-from .lang import get_words
+from .lang import Language
 
 Call = Literal["correct", "somewhere", "incorrect"]
 
@@ -28,32 +26,23 @@ CALL_COLORS: Mapping[Call, str] = {
 }
 
 
-class Configuration:
+class Configuration(Language):
     """Represents the configuration of a Wordle game."""
 
-    def __init__(self, length: int = 5, height: int = 6, language: Optional[str] = None):
+    def __init__(
+        self,
+        length: Optional[int] = None,
+        height: Optional[int] = None,
+        language: Optional[str] = None,
+    ):
         """Instantiate the configuration.
 
         :param length: The length of the words. The canonical game uses 5.
         :param height: The number of guesses. The canonical game uses 6.
         :param language: The language you want to play in (either en or de for now)
         """
-        self.language = language or "en"
-        self.length = length
-        self.height = height
-        self.allowed = get_words(self.length, language=language)
-        self.allowed_tuple = tuple(self.allowed)
-
-    def choice(self) -> str:
-        """Randomly choose a word."""
-        return random.choice(self.allowed_tuple)  # noqa:S311
-
-    def combinations(self, n: int, use_tqdm: bool = False):
-        """Iterate over combinations of allowed words."""
-        it = itt.combinations(self.allowed, n)
-        if use_tqdm:
-            it = tqdm(it, total=math.comb(len(self.allowed), n), unit="comb", unit_scale=True)
-        yield from it
+        super().__init__(length=length, language=language)
+        self.height = height or 6
 
     @staticmethod
     def success(counter) -> float:
@@ -65,7 +54,7 @@ class Configuration:
     def speed(self, counter) -> float:
         """Calculate the average solve speed."""
         return sum(key * value for key, value in counter.items() if isinstance(key, int)) / len(
-            self.allowed
+            self.words
         )
 
     def quality(self, counter) -> float:
@@ -106,7 +95,7 @@ class Game:
         """Make a guess."""
         if self.configuration.length != len(word):
             raise ValueError(f"Word wrong length: {word} (should be {self.configuration.length}")
-        if word not in self.configuration.allowed:
+        if word not in self.configuration.words:
             raise KeyError(f"Word not found: {word}")
         self.guesses.append(word)
         self.calls.append(
@@ -185,7 +174,12 @@ class InitialGuesser(Player):
             self.n += 1
             return guess
         else:
+            if self.n == len(self.initial):
+                self.pre_late_game_hook(guesses, calls)
             return self.guess_late_game(guesses, calls)
+
+    def pre_late_game_hook(self, guesses: list[str], calls: list[Sequence[Call]]):
+        """Run any arbitrary code before moving into the late game."""
 
     def guess_late_game(self, guesses: list[str], calls: list[Sequence[Call]]) -> str:
         """Guess after the initial guesses."""
@@ -200,15 +194,25 @@ def get_constraints(
     appears = set()
     no_appears = set()
     for call, guess in zip(calls, guesses):
-        for i, c, x in zip(itt.count(), call, guess):
-            if c == "correct":
-                positions[i] = x
-                appears.add(x)
-            elif c == "somewhere":
-                appears.add(x)
-            elif c == "incorrect":
-                no_appears.add(x)
+        _update_constraints(positions, appears, no_appears, call, guess)
     return positions, appears, no_appears
+
+
+def _update_constraints(
+    positions: dict[int, str],
+    appears: set[str],
+    no_appears: set[str],
+    call: Sequence[Call],
+    guess: str,
+) -> None:
+    for i, c, x in zip(itt.count(), call, guess):
+        if c == "correct":
+            positions[i] = x
+            appears.add(x)
+        elif c == "somewhere":
+            appears.add(x)
+        elif c == "incorrect":
+            no_appears.add(x)
 
 
 def valid_under_constraints(
@@ -228,13 +232,93 @@ class GreedyInitialGuesser(InitialGuesser):
     def guess_late_game(self, guesses: list[str], calls: list[Sequence[Call]]) -> str:
         """Guess the first word that matches the constraints given by all past guesses."""
         positions, appears, no_appears = get_constraints(guesses, calls)
-        for word in self.configuration.allowed:
+        for word in self.configuration.words:
             if word not in guesses and valid_under_constraints(
                 word, positions, appears, no_appears
             ):
                 return word
         raise ValueError("could not make a guess")
 
+
+class CachedGreedyInitialGuesser(InitialGuesser):
+    """Guess the initial guesses then use process of elimination to make new guesses."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.remaining = set(self.configuration.words)
+        self.positions = {}
+        self.appears = set()
+        self.no_appears = set()
+
+    def update_constraints(self, guess: str, call: Sequence[Call]) -> None:
+        _update_constraints(
+            positions=self.positions,
+            appears=self.appears,
+            no_appears=self.no_appears,
+            guess=guess,
+            call=call,
+        )
+
+    def pre_late_game_hook(self, guesses: list[str], calls: list[Sequence[Call]]):
+        for guess, call in zip(guesses, calls):
+            self.update_constraints(guess=guess, call=call)
+
+    def guess_late_game(self, guesses: list[str], calls: list[Sequence[Call]]) -> str:
+        """Guess the first word that matches the constraints given by all past guesses."""
+        self.update_constraints(guess=guesses[-1], call=calls[-1])
+        self.remaining = set(
+            word
+            for word in self.remaining
+            if valid_under_constraints(
+                word,
+                positions=self.positions,
+                appears=self.appears,
+                no_appears=self.no_appears,
+            )
+        )
+        return self.remaining.pop()
+
+
+class MaxEntropyInitialGuesser(InitialGuesser):
+    """Guess the initial guesses then use process of elimination to make new guesses."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.remaining = dict(self.configuration.scores)
+        self.positions = {}
+        self.appears = set()
+        self.no_appears = set()
+
+    def update_constraints(self, guess: str, call: Sequence[Call]) -> None:
+        _update_constraints(
+            positions=self.positions,
+            appears=self.appears,
+            no_appears=self.no_appears,
+            guess=guess,
+            call=call,
+        )
+
+    def pre_late_game_hook(self, guesses: list[str], calls: list[Sequence[Call]]):
+        for guess, call in zip(guesses, calls):
+            self.update_constraints(guess=guess, call=call)
+
+    def guess_late_game(self, guesses: list[str], calls: list[Sequence[Call]]) -> str:
+        """Guess the first word that matches the constraints given by all past guesses."""
+        self.update_constraints(guess=guesses[-1], call=calls[-1])
+        self.remaining = {
+            word: score
+            for word, score in self.remaining.items()
+            if valid_under_constraints(
+                word,
+                positions=self.positions,
+                appears=self.appears,
+                no_appears=self.no_appears,
+            )
+        }
+        return self.pick()
+
+    def pick(self):
+        return max(self.remaining, key=self.remaining.get)
 
 player_resolver = Resolver.from_subclasses(base=Player, skip={InitialGuesser})
 
@@ -275,7 +359,7 @@ class Controller:
     def play_all(self):
         """Play a game on all words."""
         counter = Counter()
-        for word in tqdm(self.configuration.allowed, leave=False):
+        for word in tqdm(self.configuration.words, leave=False, unit_scale=True, unit="word"):
             game = self.play(word)
             if game.state():
                 counter[len(game.guesses)] += 1

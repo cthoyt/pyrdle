@@ -3,7 +3,7 @@
 import click
 from rich.console import Console
 
-from .wordle import CALL_COLORS, Configuration, Game
+from .wordle import CALL_COLORS, Configuration, Game, get_constraints, valid_under_constraints
 
 
 @click.command()
@@ -30,7 +30,16 @@ def main(language: str, length: int, height: int):
         print_game(console, game)
 
         guess = input("Guess: ")
-        while len(guess) != game.configuration.length or guess not in game.configuration.allowed:
+        if guess == "help":
+            positions, appears, no_appears = get_constraints(game.guesses, game.calls)
+            valid = sorted(
+                word
+                for word in configuration.words
+                if valid_under_constraints(word, positions, appears, no_appears)
+            )
+            print(",".join(valid))
+
+        while len(guess) != game.configuration.length or guess not in game.configuration.words:
             guess = input("Guess: ")
         game.append_guess(guess)
 
